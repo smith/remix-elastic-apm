@@ -144,3 +144,10 @@ Now after loading the app you should see "my-remix-app-client" in your list of s
 On the client we record "page-load", "route-change", and "http-request" transactions.
 
 In addition to the transaction data in APM, you can use the [User Experience dashboard](https://www.elastic.co/guide/en/observability/current/user-experience.html) to see and filter useful data about client-side interactions in your Remix app.
+
+### Gratutious Screenshots
+
+<img width="1715" alt="CleanShot 2021-12-17 at 11 23 27@2x" src="https://user-images.githubusercontent.com/9912/146583658-fbc55da9-d275-4a22-9b70-be05360805b8.png">
+<img width="1706" alt="CleanShot 2021-12-17 at 11 24 20@2x" src="https://user-images.githubusercontent.com/9912/146583724-51293267-c1a3-4933-b118-352ce4cd5f0d.png">
+<img width="1705" alt="CleanShot 2021-12-17 at 11 25 01@2x" src="https://user-images.githubusercontent.com/9912/146583804-0f88df61-819b-48ea-995e-7d26898b1a94.png">
+
