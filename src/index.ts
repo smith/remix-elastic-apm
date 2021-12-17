@@ -47,20 +47,12 @@ export function patchHandler(remixServerRuntime, agent, { version, enabled }) {
           const transactionName = `${requestType} ${
             routeName === "root" ? "/" : routeName
           }`;
-          console.log({ transactionName });
           agent.currentTransaction.setDefaultName(transactionName);
         }
 
         let response;
 
-        try {
-          response = await handler.apply(this, arguments);
-          console.log({ response });
-        } catch (e) {
-          console.log({ e });
-          agent.captureError(e, { response });
-          throw e;
-        }
+        response = await handler.apply(this, arguments);
 
         agent.currentTransaction.setOutcome(
           response.status >= 400 ? "failure" : "success"

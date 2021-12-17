@@ -20,7 +20,7 @@ It should work in all Node.js-based environments, but I've only used it with Exp
 
 You'll want to have an existing Remix project started with Express Server as the deployment target.
 
-### Elastic APM configuration
+### Elastic cluster configuration
 
 You'll need an Elastic APM server URL and secret token. The easiest way to get this set up is by creating a deployment on [Elastic Cloud](https://www.elastic.co/cloud/).
 
@@ -50,6 +50,7 @@ const apm = require("elastic-apm-node").start({
   serviceName: "my-remix-app-server",
   secretToken: process.env.ELASTIC_APM_SECRET_TOKEN,
   serverUrl: process.env.ELASTIC_APM_SERVER_URL,
+  frameworkName: "remix",
 });
 ```
 
@@ -66,5 +67,78 @@ The [`addPatch` method](https://www.elastic.co/guide/en/apm/agent/nodejs/master/
 After the `const apm...` code we've added, add:
 
 ```js
-apm.addPatch(require("remix-elastic-apm").patchHandler);
+apm.addPatch(
+  "@remix-run/server-runtime",
+  require("remix-elastic-apm").patchHandler
+);
 ```
+
+Now in Kibana your transactions will have names like "GET /demos/params/$id", "action /demos/actions", and "loader /index". These should correspond with your routes, actions, and loaders.
+
+### Add client agent configuration to the load context
+
+(it would be nice if this were easier to do, but this gets the job done. I've opened [remix-run/remix#1029](https://github.com/remix-run/remix/issues/1029) requesting a better way to do this.)
+
+In order to do [correlation with the RUM agent](https://www.elastic.co/guide/en/apm/agent/nodejs/master/distributed-tracing.html#tracing-rum-correlation)
+we'll need to get some context about the current transaction on the server to send to the client setup.
+
+This will make it so that on page load the agent on the client will be able to correlate its transactions with the server transactions.
+
+Where we currently have `createRequestHandler({ build: require("./build") })`, add:
+
+```js
+createRequestHandler({
+  getLoadContext: () => {
+    return {
+      elasticApmRumAgentConfig:
+        require("remix-elastic-apm").getElasticApmClientConfig(
+          {
+            serviceName: "my-remix-app-client",
+            serverUrl: process.env.ELASTIC_APM_SERVER_URL,
+          },
+          apm
+        ),
+    };
+  },
+  build: require("./build"),
+});
+```
+
+(Note that in the default Express setup there are two calls to `createRequestHandler` so you'll need to update both.)
+
+When `getLoadContext` is called it will return something like:
+
+```js
+{
+  serviceName: 'my-remix-app-client',
+  serverUrl: 'https://my-cloud-cluster.es.io',
+  pageLoadSpanId: '7f61a915f84d2caa',
+  pageLoadTraceId: 'bf51f30595b60e2b5c23f19007ac2c60',
+  pageLoadSampled: true
+}
+```
+
+Return the context from the root loader by adding the following to app/root.tsx:
+
+```js
+export const loader: LoaderFunction = async ({ context }) => {
+  return { elasticApmRumAgentConfig: context.elasticApmRumAgentConfig };
+};
+```
+
+### Configure the RUM JS agent
+
+Add this to app/entry.client.tsx before the call to `hydrate`:
+
+```js
+import { init as initApm } from "@elastic/apm-rum";
+initApm(__remixContext.routeData.root.elasticApmRumAgentConfig);
+```
+
+This will initialize the APM agent with the data from the loader context.
+
+Now after loading the app you should see "my-remix-app-client" in your list of services in Kibana.
+
+On the client we record "page-load", "route-change", and "http-request" transactions.
+
+In addition to the transaction data in APM, you can use the [User Experience dashboard](https://www.elastic.co/guide/en/observability/current/user-experience.html) to see and filter useful data about client-side interactions in your Remix app.
